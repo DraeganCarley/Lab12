@@ -1,0 +1,175 @@
+top.v
+
+module top(
+    input sw, // w
+    output [9:0] led, // see IO table
+    input btnC, // clk
+    input btnU // reset
+);
+
+    // Hook up binary and one-hot state machines
+
+    wire [4:0] onehot_state;
+    wire [2:0] binary_state;
+    wire onehot_z;
+    wire binary_z;
+
+    onehot onehot1(
+        .sw(sw),
+        .clk(btnC),
+        .reset(btnU),
+        .state(onehot_state),
+        .z(onehot_z)
+    );
+
+    binary binary1(
+        .sw(sw),
+        .clk(btnC),
+        .reset(btnU),
+        .state(binary_state),
+        .z(binary_z)
+    );
+
+    assign led[0] = onehot_z;
+    assign led[1] = binary_z;
+    assign led[6:2] = onehot_state;
+    assign led[9:7] = binary_state;
+
+endmodule
+
+
+binary.v
+
+module binary(
+    input wire sw,
+    input wire clk,
+    input wire reset,
+    output wire [2:0] state,
+    output wire z
+);
+
+
+    wire [2:0] next_state;
+
+    wire a = state[2];
+    wire b = state[1];
+    wire c = state[0];
+
+    assign next_state[2] = (a & sw) | (b & c & sw);
+    assign next_state[1] = (b & ~c) | (c & ~b) | (sw & ~a & ~b);
+    assign next_state[0] = (b & c & ~sw) | (sw & ~a & ~b) | (sw & ~a & ~c) | (~b & ~c & ~sw);
+
+    dff FF0(
+        .Default(1'b0),
+        .D(next_state[0]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[0])
+    );
+
+    dff FF1(
+        .Default(1'b0),
+        .D(next_state[1]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[1])
+    );
+
+    dff FF2(
+        .Default(1'b0),
+        .D(next_state[2]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[2])
+    );
+
+    assign z = (state == 3'b010) | (state == 3'b100);
+
+endmodule
+
+onehot.v
+
+module onehot(
+    input wire sw,
+    input wire clk,
+    input wire reset,
+    output wire [4:0] state,
+    output wire z
+);
+
+
+    wire [4:0] next_state;
+
+    assign next_state[0] = 1'b0;
+    assign next_state[1] = ~sw & (state[0] | state[3] | state[4]);
+    assign next_state[2] = ~sw & (state[1] | state[2]);
+    assign next_state[3] = sw & (state[0] | state[1] | state[2]);
+    assign next_state[4] = sw & (state[3] | state[4]);
+
+    dff A_ff(
+        .Default(1'b1),
+        .D(next_state[0]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[0])
+    );
+
+    dff B_ff(
+        .Default(1'b0),
+        .D(next_state[1]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[1])
+    );
+
+    dff C_ff(
+        .Default(1'b0),
+        .D(next_state[2]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[2])
+    );
+
+    dff D_ff(
+        .Default(1'b0),
+        .D(next_state[3]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[3])
+    );
+
+    dff E_ff(
+        .Default(1'b0),
+        .D(next_state[4]),
+        .clk(clk),
+        .reset(reset),
+        .Q(state[4])
+    );
+
+    assign z = state[2] | state[4];
+
+endmodule
+
+
+dff.v
+
+module dff(
+    input Default,
+    input D,
+    input clk,
+    input reset,
+    output reg Q
+);
+
+    initial begin
+        Q <= Default;
+    end
+
+    always @(posedge clk, posedge reset) begin
+        if (reset)
+            Q <= Default;
+        else
+            Q <= D;
+    end
+
+endmodule
